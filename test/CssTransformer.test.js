@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as csstree from "css-tree";
-import { CssTransformer } from "./CssTransformer.js";
+import { CssTransformer } from "../src/CssTransformer.js";
 
 const renameRule = (from, to) => ({
 	type: "declaration",
@@ -429,4 +429,3 @@ describe("the unified rule context", () => {
 		);
 	});
 });
-
