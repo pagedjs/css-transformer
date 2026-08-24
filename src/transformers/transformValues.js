@@ -6,35 +6,38 @@ import {
 	splitArguments,
 } from "./helpers.js";
 
-/**
- * The value pass: `declaration` rules, then `function` rules over the value
- * each declaration ends up with.
- *
- * Both share one `Declaration` traversal. css-tree fast-traverses to
- * declarations through containers only, so the inner walk covers a single
- * value rather than the sheet — adding `function` costs no extra pass.
- *
- * declaration — ctx `{ property, value, valueAST, node, item, list }`
- * - `{ property?, value? }` rewrites in place; later rules see the result.
- * - `{ declarations: [{ property, value, important? }] }` replaces it and stops.
- * - `{ remove: true }` drops the declaration and stops.
- *
- * function — ctx `{ name, value, args, node, item, list, declaration }`
- * - `{ value }` replaces the function with that value fragment and stops.
- * - `{ remove: true }` drops the function and stops.
- */
+/** Runs declaration rules before function rules in one `Declaration` traversal. */
 export function transformValues(ast, rules = {}) {
 	const declarationRules = rules.declaration ?? [];
 	const functionRules = rules.function ?? [];
 	if (!declarationRules.length && !functionRules.length) return ast;
+	const pendingDeclarations = [];
 
 	csstree.walk(ast, {
 		visit: "Declaration",
 		enter(node, item, list) {
 			if (applyDeclarationRules(node, item, list, declarationRules)) return;
-			applyFunctionRules(node, functionRules);
+			const rule = this.rule;
+			const declarations = applyFunctionRules(node, functionRules, {
+				rule,
+				selector: rule?.prelude ? csstree.generate(rule.prelude) : null,
+			});
+			if (declarations.length > 0 && this.block?.children) {
+				pendingDeclarations.push({
+					list: this.block.children,
+					declarations,
+				});
+			}
 		},
 	});
+
+	// Append after the walk so source metadata containing the same function is
+	// not treated as a new occurrence during this pass.
+	for (const { list, declarations } of pendingDeclarations) {
+		for (const declaration of declarations) {
+			list.append(list.createItem(buildDeclaration(declaration)));
+		}
+	}
 
 	return ast;
 }
@@ -80,8 +83,9 @@ function applyDeclarationRules(node, item, list, rules) {
 	return false;
 }
 
-function applyFunctionRules(declaration, rules) {
-	if (!rules.length || !declaration.value) return;
+function applyFunctionRules(declaration, rules, enclosing) {
+	const declarations = [];
+	if (!rules.length || !declaration.value) return declarations;
 
 	csstree.walk(declaration.value, {
 		visit: "Function",
@@ -96,6 +100,8 @@ function applyFunctionRules(declaration, rules) {
 				item,
 				list,
 				declaration,
+				rule: enclosing.rule,
+				selector: enclosing.selector,
 			};
 
 			for (const rule of rules) {
@@ -103,6 +109,9 @@ function applyFunctionRules(declaration, rules) {
 
 				const result = rule.transform(ctx);
 				if (!result) continue;
+				if (Array.isArray(result.declarations)) {
+					declarations.push(...result.declarations);
+				}
 
 				if (result.remove) {
 					list.remove(item);
@@ -112,7 +121,10 @@ function applyFunctionRules(declaration, rules) {
 					replaceItem(list, item, parseValueParts(result.value));
 					return;
 				}
+				if (Array.isArray(result.declarations)) return;
 			}
 		},
 	});
+
+	return declarations;
 }
