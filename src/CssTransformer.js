@@ -6,16 +6,8 @@ import { transformUrls } from "./transformers/transformUrls.js";
 import { inlineImports } from "./utils/inlineImports.js";
 
 /**
- * The passes `apply()` runs, in order, and the rule types each one serves.
- *
- * Rule types are grouped rather than given a walk apiece: every pass roots
- * on a node type css-tree fast-traverses to (`Declaration`, `Atrule`,
- * `Rule`), and reaches the finer types by walking the subtree it already
- * has — a value, a prelude. Adding `function`, `media-query` or `pseudo`
- * therefore costs no extra traversal of the sheet.
- *
- * `url` is in neither: URLs are rewritten in `prepare()`, per source sheet,
- * because resolution needs that sheet's base URL.
+ * `apply()` groups rule types into three ordered AST traversals. URL rules run
+ * in `prepare()` so resolution uses each source's base URL.
  */
 const PASSES = [
 	{ types: ["declaration", "function"], apply: transformValues },
@@ -24,17 +16,11 @@ const PASSES = [
 ];
 
 /**
- * Rewrites a `css-tree` AST with a fixed set of rules.
+ * Rewrites `css-tree` ASTs with `{ type, match, transform }` rules.
  *
- * A rule is `{ type, match, transform }`. `type` selects the walker;
- * anything with an unknown type is carried but never run.
- *
- * `match(ctx)` and `transform(ctx)` both take the same single context
- * object, so a rule destructures only what it needs and a walker can add
- * a field without changing any signature. Every ctx carries `node` (the
- * AST node matched) plus `item` and `list` (its position in the enclosing
- * `List`, when it has one); the rest is per type. Serialized conveniences
- * are named after the thing — `value`, `selector`, `query`, `url`.
+ * `match` and `transform` receive the same context object. Every context has
+ * `node`, `item`, and `list`; the remaining fields depend on `type`. Unknown
+ * types are ignored.
  *
  * | type          | matches                          | ctx adds                                          | `transform` may return                                                                |
  * | ------------- | -------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -45,12 +31,10 @@ const PASSES = [
  * | `rule`        | every `Rule`                     | `selector`, `block`                                | `{ selector }`, `{ remove }`                                                            |
  * | `selector`    | every `Selector`, nested too     | `selector`, `rule`                                 | `{ selector }`, `{ remove }`                                                            |
  * | `pseudo`      | every `::element` / `:class` part | `name`, `kind`, `args`, `selector`, `rule`        | `{ selector }`, `{ remove }`                                                            |
- * | `url`         | every `Url`, already rebased     | `url`, `baseURL`                                   | `{ url }`                                                                               |
+ * | `url`         | every `Url` during `prepare()`   | `url`, `baseURL`                                   | `{ url }`                                                                               |
  *
- * A result that edits the node in place — `{ property }`, `{ value }` on a
- * declaration, `{ selector }` on a rule or selector, `{ url }` — refreshes
- * ctx, and later rules of that type see the new state. Anything that
- * replaces, removes or reparents the node stops the chain for that node.
+ * In-place edits update the context for later rules of the same type.
+ * Node replacement, removal, or reparenting stops the rule chain for that node.
  */
 export class CssTransformer {
 	#rulesByType = new Map();
@@ -72,8 +56,10 @@ export class CssTransformer {
 	}
 
 	/**
+	 * Parses and combines stylesheet sources.
+	 *
 	 * @param {string | Array<{ css: string, cssBaseURL?: string }>} input
-	 *   Either text, or an array of stylesheet sources to concatenate.
+	 *   CSS text or sources to concatenate. `cssBaseURL` resolves imports and URLs.
 	 * @returns {Promise<import("css-tree").CssNode>} Combined AST ready for `apply()`.
 	 */
 	async prepare(input) {
@@ -91,6 +77,10 @@ export class CssTransformer {
 		return combined;
 	}
 
+	/**
+	 * @param {import("css-tree").CssNode} ast
+	 * @returns {import("css-tree").CssNode} The mutated AST.
+	 */
 	apply(ast) {
 		for (const pass of PASSES) {
 			const rules = {};

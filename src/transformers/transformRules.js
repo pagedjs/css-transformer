@@ -11,30 +11,7 @@ const PSEUDO_KINDS = {
 	PseudoClassSelector: "class",
 };
 
-/**
- * The style-rule pass: `rule` rules, then `selector` rules over each
- * selector in the prelude, then `pseudo` rules over the parts within it.
- *
- * All three share one `Rule` traversal. The fast traversal never descends
- * into preludes, so walking selectors here replaces what used to be a
- * whole-sheet `Selector` walk. Selectors nested in `:is()` / `:not()` are
- * reached too, each in its own turn.
- *
- * rule — ctx `{ selector, block, node, item, list }`
- * - `{ selector }` reparses the prelude in place; later rules see it.
- * - `{ remove: true }` drops the rule and stops.
- *
- * selector — ctx `{ selector, node, item, list, rule }` for one `Selector`
- * - `{ selector }` reparses that selector in place; later rules see it.
- * - `{ remove: true }` drops it from the selector list and stops. A rule
- *   whose last selector goes is dropped with it.
- *
- * pseudo — ctx `{ name, kind, args, selector, node, item, list, rule }`
- * for one `::element` or `:class` part, `kind` being `"element"` or
- * `"class"`, with `item`/`list` positioned in the containing compound.
- * - `{ selector }` splices that selector fragment in place of the part and stops.
- * - `{ remove: true }` drops the part and stops.
- */
+/** Runs rule, selector, then pseudo rules in one `Rule` traversal. */
 export function transformRules(ast, rules = {}) {
 	const ruleRules = rules.rule ?? [];
 	const selectorRules = rules.selector ?? [];

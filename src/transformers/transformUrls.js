@@ -4,12 +4,8 @@ export const ABSOLUTE_URL_RE =
 	/^(?:https?:|data:|blob:|javascript:|mailto:|tel:|#|\/\/)/i;
 
 /**
- * The URL pass, run per source sheet from `prepare()` because resolution
- * needs that sheet's base URL. Every `Url` is rebased first, so a rule
- * always sees an absolute URL.
- *
- * url — ctx `{ url, baseURL, node, item, list }`
- * - `{ url }` replaces it; later rules see the replacement.
+ * Resolves URLs against `baseURL`, then applies URL rules in registration
+ * order. Later rules see earlier replacements.
  */
 export function transformUrls(ast, rules = [], options = {}) {
 	const activeRules = rules ?? [];

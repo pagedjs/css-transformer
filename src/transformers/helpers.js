@@ -2,7 +2,6 @@ import * as csstree from "css-tree";
 
 /**
  * Snapshot a `List`'s items so a caller can splice while iterating.
- *
  * @param {import("css-tree").List | undefined} list
  * @returns {Array<Object>}
  */
@@ -13,10 +12,8 @@ export function itemsOf(list) {
 }
 
 /**
- * Replace `item` with `nodes`, inserting *before* it. The walker's cursor
- * already sits past `item`, so the replacement is not revisited — which is
- * what a rule that produced final output wants, and what keeps a rewrite
- * that re-emits the same node type from looping.
+ * Inserts replacements before `item` so the current traversal does not revisit
+ * them.
  */
 export function replaceItem(list, item, nodes) {
 	for (const node of nodes) {
@@ -26,11 +23,7 @@ export function replaceItem(list, item, nodes) {
 }
 
 /**
- * Hoist an at-rule's block into its parent list and drop the at-rule.
- *
- * Children go in *after* `item`, the opposite of `replaceItem`: the cursor
- * sits past `item` and only what lands there is visited, so a nested
- * at-rule gets flattened or dropped in its turn.
+ * Inserts unwrapped children after `item` so the current traversal visits them.
  */
 export function unwrapAtrule(node, item, list) {
 	let after = item;
@@ -42,12 +35,10 @@ export function unwrapAtrule(node, item, list) {
 	list.remove(item);
 }
 
-/** Parse a selector fragment into the parts of a compound selector. */
 export function parseSelectorParts(text) {
 	return csstree.parse(text, { context: "selector" }).children.toArray();
 }
 
-/** Parse a declaration value into its component nodes. */
 export function parseValueParts(text) {
 	return csstree.parse(text, { context: "value" }).children.toArray();
 }
@@ -64,11 +55,7 @@ export function buildDeclaration({ property, value, important = false }) {
 	};
 }
 
-/**
- * Serialize a function's or pseudo's arguments, split on top-level commas.
- * Each group is generated as a whole so the spacing between its tokens
- * survives — `element(page title)` is one argument, not two.
- */
+/** Serializes arguments and splits only at top-level commas. */
 export function splitArguments(node) {
 	const args = [];
 	let group = [];
@@ -94,7 +81,6 @@ function generateGroup(nodes) {
 		.trim();
 }
 
-/** Drop every declaration in `block` whose property is in `properties`. */
 export function removeDeclarations(block, properties) {
 	if (!block?.children) return;
 	const names = properties instanceof Set ? properties : new Set(properties);
@@ -106,7 +92,6 @@ export function removeDeclarations(block, properties) {
 	}
 }
 
-/** Insert declarations at the head of `block`, in the order given. */
 export function prependDeclarations(block, declarations) {
 	if (!block?.children) return;
 	for (const decl of [...declarations].reverse()) {
