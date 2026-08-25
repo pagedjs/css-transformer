@@ -9,7 +9,8 @@
     ".": "./src/CssTransformer.js"
   },
   "files": [
-    "src"
+    "src",
+    "docs"
   ],
   "sideEffects": false,
   "engines": {
