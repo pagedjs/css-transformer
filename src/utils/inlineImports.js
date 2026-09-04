@@ -3,6 +3,12 @@ import { transformUrls } from "../transformers/transformUrls.js";
 
 const MAX_DEPTH = 8;
 
+/**
+ * Inline imports into an existing stylesheet, resolving each source's URLs.
+ * @param {import("css-tree").CssNode} ast Stylesheet to mutate.
+ * @param {string} baseURL URL of the containing stylesheet.
+ * @returns {Promise<void>} Resolves when imports have been processed.
+ */
 export async function inlineImports(ast, baseURL) {
 	await inlineImportsRecursive(ast, baseURL, 0, new Set());
 }
@@ -132,9 +138,7 @@ function decodeDataUrl(url) {
 }
 
 function wrapImportedWithConditions(importedAst, conditions) {
-	const rules = [];
-	importedAst.children.forEach((c) => rules.push(c));
-	if (!conditions || !conditions.length) return rules;
+	if (!conditions || !conditions.length) return importedAst.children;
 
 	let layerPart = null;
 	let supportsPart = null;
@@ -152,22 +156,25 @@ function wrapImportedWithConditions(importedAst, conditions) {
 		}
 	}
 
-	let cssText = rules.map((r) => csstree.generate(r)).join("\n");
+	let children = importedAst.children;
 
 	if (mediaParts.length) {
-		cssText = `@media ${mediaParts.join(" ")} { ${cssText} }`;
+		children = wrapChildren(`@media ${mediaParts.join(" ")}`, children);
 	}
 	if (supportsPart != null) {
-		cssText = `@supports (${supportsPart}) { ${cssText} }`;
+		children = wrapChildren(`@supports (${supportsPart})`, children);
 	}
 	if (layerPart != null) {
-		cssText = `@layer${layerPart ? " " + layerPart : ""} { ${cssText} }`;
+		children = wrapChildren(`@layer${layerPart ? " " + layerPart : ""}`, children);
 	}
 
-	const wrappedAst = csstree.parse(cssText);
-	const result = [];
-	wrappedAst.children.forEach((c) => result.push(c));
-	return result;
+	return children;
+}
+
+function wrapChildren(prelude, children) {
+	const wrapper = csstree.parse(`${prelude}{}`).children;
+	wrapper.first.block.children = children;
+	return wrapper;
 }
 
 function unwrapFunction(text, name) {

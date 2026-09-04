@@ -1,14 +1,15 @@
 {
   "name": "@pagedjs/css-transformer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Rule-driven CSS AST transformations for Paged.js",
   "license": "MIT",
   "type": "module",
-  "main": "./src/CssTransformer.js",
+  "main": "./dist/index.js",
   "exports": {
-    ".": "./src/CssTransformer.js"
+    ".": "./dist/index.js"
   },
   "files": [
+    "dist",
     "src",
     "docs"
   ],
@@ -22,14 +23,16 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src",
-    "check": "npm run lint && npm test"
-  },
-  "dependencies": {
-    "css-tree": "^3.2.1"
+    "lint": "eslint src scripts test",
+    "build": "node scripts/build.js",
+    "test:bundle": "node scripts/check-bundle.js",
+    "prepack": "npm run build",
+    "check": "npm run lint && npm test && npm run build && npm run test:bundle"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
+    "css-tree": "3.2.1",
+    "esbuild": "^0.28.2",
     "eslint": "^10.0.0",
     "globals": "^17.0.0",
     "vitest": "^4.1.0"

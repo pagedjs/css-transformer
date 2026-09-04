@@ -6,10 +6,11 @@
 
 ```js
 import { CssTransformer } from "@pagedjs/css-transformer";
-import * as csstree from "css-tree";
 ```
 
-Install `css-tree` directly when application code parses, inspects, or serializes the returned AST.
+Use `prepare()` to parse CSS, inspect the returned AST directly, and use `generate()` to serialize a sheet or subtree. These operations need no separate CSS Tree installation.
+
+The package root resolves to `dist/index.js`, a browser ESM bundle with no external runtime imports. Third-party licenses ship in `dist/THIRD-PARTY-NOTICES.txt`.
 
 ## Quick start
 
@@ -32,7 +33,7 @@ const transformer = new CssTransformer({
 const ast = await transformer.prepare("aside { float: footnote; }");
 transformer.apply(ast);
 
-console.log(csstree.generate(ast));
+console.log(transformer.generate(ast));
 // aside{--float:footnote;display:none}
 ```
 
@@ -89,19 +90,19 @@ Sources are concatenated in array order. `prepare()` performs these operations p
 Import behavior:
 
 - String and `url()` import targets are supported.
-- `layer`, `supports()`, and media conditions are retained around imported rules.
+- `layer`, `supports()`, and media conditions wrap imported rules in that order, from outermost to innermost. Wrappers reuse the imported AST nodes; only the wrapper syntax is parsed.
 - `data:` imports support percent-encoded and base64 CSS.
 - Duplicate, cyclic, malformed, unresolvable, and deeper-than-eight imports are removed.
 - Failed fetches emit `console.warn` and remove the import.
 
-CSS parse failures, invalid imported CSS, and exceptions from `url` rule callbacks reject the returned promise.
+CSS parse errors, including errors in imported stylesheets, and exceptions from `url` rule callbacks reject the returned promise.
 
 ### `transformer.apply(ast)`
 
 Synchronously applies non-URL rules to a `css-tree` AST. It mutates and returns the same AST.
 
 ```js
-const ast = csstree.parse("p { legacy-color: navy; }");
+const ast = await transformer.prepare("p { legacy-color: navy; }");
 const result = transformer.apply(ast);
 
 console.log(result === ast);
@@ -109,6 +110,10 @@ console.log(result === ast);
 ```
 
 `apply()` accepts an AST created by `prepare()` or directly by `css-tree`. Direct ASTs do not receive import processing, URL resolution, or `url` rules.
+
+### `transformer.generate(ast)`
+
+Synchronously serializes a stylesheet or subtree to CSS text without mutating nodes, parsing CSS, or running rules. `prepare()` and `apply()` return ASTs. Inspect original declarations between those phases, and pass subtrees to `generate()` when you need text.
 
 ## Processing order
 
@@ -512,7 +517,7 @@ const ast = await transformer.prepare([
 	},
 ]);
 
-console.log(csstree.generate(ast));
+console.log(transformer.generate(ast));
 // p{background:url(https://example.com/styles/img/paper.png?v=1)}
 ```
 
@@ -531,7 +536,7 @@ Transform results:
 
 ## Errors and mutation
 
-- Invalid input CSS and invalid CSS fragments returned by rules throw `css-tree` parse errors.
+- Errors from `css-tree` while parsing input CSS or replacement fragments propagate to the caller.
 - Exceptions from `match` or `transform` propagate to the caller.
 - `prepare()` is asynchronous because imports may use `fetch`; rule callbacks remain synchronous.
 - `apply()` mutates the supplied AST. Clone it before applying rules when the original must be preserved.
